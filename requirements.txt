@@ -1,0 +1,7 @@
+fastapi
+SQLAlchemy
+uvicorn
+urllib3 >= 2.7.0, < 3.0.0
+python_dateutil >= 2.8.2
+requests
+bs4
