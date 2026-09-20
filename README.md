@@ -31,7 +31,6 @@ Or, you can use the client:
 
 ```python
 import openapi_client
-from openapi_client import PartyRequest
 from openapi_client.api.default_api import DefaultApi
 api_host = "127.0.0.1:8000"
 ```
