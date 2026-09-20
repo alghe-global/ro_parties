@@ -6,6 +6,7 @@ import logging
 import re
 import sys
 import time
+from time import gmtime
 from collections import defaultdict
 from typing import Any, Generator
 
@@ -18,8 +19,9 @@ from openapi_client import PartyRequest
 from openapi_client.api.default_api import DefaultApi
 
 LOG_FORMATTER = logging.Formatter(
-    '[%(asctime)s] [%(levelname)s] %(message)s',
-    datefmt="%Y-%m-%dT%H:%M:%SZ")
+    '[%(asctime)s.%(msecs)03dZ] [%(levelname)s] %(message)s',
+    datefmt="%Y-%m-%dT%H:%M:%S")
+logging.Formatter.converter = gmtime
 
 API_HOST = "127.0.0.1:8000"
 DEPUTIES_URL = "https://www.cdep.ro/ords/pls/parlam/structura2015.de?idl=1"
@@ -90,6 +92,7 @@ def main(
         file_output: str = None,
         data_file: str = None
 ) -> None:
+    delete_parties = []
     parliamentarians = defaultdict(dict)
 
     if data_file is None:
@@ -164,6 +167,20 @@ def main(
             party_request
         )
 
+    for db_party in all_db_parties:
+        if db_party["name"] not in parties_list:
+            delete_parties.append(db_party)
+
+    if delete_parties:
+        _log.info(
+            "Deleting parties present in the database but not " +
+            "in parliament anymore"
+        )
+        _log.debug(f"Deleting parties: {delete_parties}")
+        for party in delete_parties:
+            api_client.delete_party_parties_party_id_delete(party["id"])
+            _log.debug(f"Deleted party {party}")
+
     _log.info("Successfully populated the database through the API")
 
 
@@ -172,30 +189,29 @@ if __name__ == "__main__":
         description="Fetch all deputies and senators per party from the " + \
                     "Romanian parliament and populate into the database " + \
                     "by calling the API",
+        # TODO: delete epilog once #3 is complete
         epilog="Calls are made over non secure, non authorized, localhost"
     )
-    parser.add_argument("-o", "--output", dest="file_output",
-                        type=str, required=False,
-                        help="Write to this file the data fetched " + \
-                             "from the websites before commiting")
-    parser.add_argument("-f", "--file", dest="data_file",
-                        type=str, required=False,
-                        help="Use this JSON data file to load the data " + \
-                             "instead of fetching from the websites")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("-o", "--output", dest="file_output",
+                       type=str, required=False,
+                       help="Write to this file the data fetched " + \
+                            "from the websites before commiting")
+    group.add_argument("-f", "--file", dest="data_file",
+                       type=str, required=False,
+                       help="Use this JSON data file to load the data " + \
+                            "instead of fetching from the websites")
     args = parser.parse_args()
 
     file_output = None
     if args.file_output:
         file_output = args.file_output
+        _log.debug(f"Using file output: {file_output}")
 
     data_file = None
     if args.data_file:
         data_file = args.data_file
-        file_output = None
-        _log.debug(f"Using data file: {data_file}. Deactivated file output")
-
-    if file_output:
-        _log.debug(f"Using file output: {file_output}")
+        _log.debug(f"Using data file: {data_file}")
 
     _log.info("Starting")
     main(file_output=file_output, data_file=data_file)
